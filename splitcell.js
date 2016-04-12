@@ -45,11 +45,11 @@ define([
 		var action_full_name = IPython.keyboard_manager.actions.register(action, name, prefix);
 
 		//define keyboard shortucts
-		var edit_mode_shortcuts = {};
-		edit_mode_shortcuts[params.toggle_cell_style_keybinding] =  action_full_name;
+		var command_mode_shortcuts = {};
+		command_mode_shortcuts[params.toggle_cell_style_keybinding] =  action_full_name;
 
 		//register keyboard shortucts with keyboard_manager
-		IPython.notebook.keyboard_manager.edit_shortcuts.add_shortcuts(edit_mode_shortcuts);
+		IPython.notebook.keyboard_manager.command_shortcuts.add_shortcuts(command_mode_shortcuts);
 	});
 
 
