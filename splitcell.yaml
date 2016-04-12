@@ -1,4 +1,4 @@
-Type: Ipython Notebook Extension
+Type: IPython Notebook Extension
 Name: splitcell
 Description: Enable split cell notebooks
 Main: splitcell.js

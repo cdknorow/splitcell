@@ -2,173 +2,95 @@
 
 define([
 	'base/js/namespace',
-    'notebook/js/textcell',
-    'notebook/js/codecell',
-    ]), function(Ipython, textcell, codecell){
+    'services/config',
+    'base/js/utils'
+    ], function(IPython, configmod, utils){
 	"use strict";
 
-	Ipython.notebook.cell_style = "split";
+	//create config object to load paramters
+	var base_url = utils.get_body_data("baseUrl");
+	var config = new configmod.ConfigSection('notebook', {base_url: base_url});
 
-	Ipython.notebook.set_cell_style = function(cell_style){
-    		this.cell_style = cell_style
-		};
+	//define default config parameter values
+	var params = {
+		toggle_cell_style_keybinding : 'shift-s'
+	};
 
-	Ipython.notebook.get_cell_style_html = function(cell_style){
+	//updates default params with any specified in the server's config
+	var update_params = function(){
+		for (var key in params){
+			if (config.data.hasOwnProperty(key)){
+				params[key] = config.data[key];
+			}
+		}
+	};
+
+	console.log('updated params')
+
+	config.loaded.then(function(){
+		// update defaults
+		update_params();
+
+		//register actions with ActionHandler instance
+		var prefix = 'auto';
+		var name = 'toggle-cell-style';
+		var action = {
+			icon : 'fa-style-o',
+			help : 'Toggle split/centered cell style',
+			help_index : 'eb',
+			id : 'split_cells',
+			handler : toggle_cell_style
+					};
+
+		var action_full_name = IPython.keyboard_manager.actions.register(action, name, prefix);
+
+		//define keyboard shortucts
+		var edit_mode_shortcuts = {};
+		edit_mode_shortcuts[params.toggle_cell_style_keybinding] =  action_full_name;
+
+		//register keyboard shortucts with keyboard_manager
+		IPython.notebook.keyboard_manager.edit_shortcuts.add_shortcuts(edit_mode_shortcuts);
+	});
+
+
+	var toggle_cell_style = function(){
+		var cell = IPython.notebook.get_selected_cell();
+		if (!("cell_style" in cell.metadata)){cell.metadata.cell_style = 'split';}
+		else if (cell.metadata.cell_style == 'center'){cell.metadata.cell_style = 'split';}
+		else {cell.metadata.cell_style = 'center';}
+
+		update_cell_style_element(cell);
+	}
+
+	var get_cell_style_html = function(cell_style){
+		console.log(cell_style)
         if (cell_style == "split") 
             {return "float:left; width:50%;";}
         return "width:100%;";
     	};
 
-	Ipython.notebook.insert_cell_at_index = function(type, index){
-	    var ncells = this.ncells();
-	    index = Math.min(index, ncells);
-	    index = Math.max(index, 0);
-	    var cell = null;
-	    type = type || this.class_config.get_sync('default_cell_type');
-	    if (type === 'above') {
-	        if (index > 0) {
-	            type = this.get_cell(index-1).cell_type;
-	        } else {
-	            type = 'code';
-	        }
-	    } else if (type === 'below') {
-	        if (index < ncells) {
-	            type = this.get_cell(index).cell_type;
-	        } else {
-	            type = 'code';
-	        }
-	    } else if (type === 'selected') {
-	        type = this.get_selected_cell().cell_type;
-	    }
+    var update_cell_style_element = function(cell){
+    	var cell_style_html = get_cell_style_html(cell.metadata.cell_style);
+    	cell.element.attr('style', cell_style_html);
+    	}
 
-	    if (ncells === 0 || this.is_valid_cell_index(index) || index === ncells) {
-	        var cell_options = {
-	            events: this.events, 
-	            config: this.config, 
-	            keyboard_manager: this.keyboard_manager, 
-	            notebook: this,
-	            tooltip: this.tooltip,
-	        };
-	        switch(type) {
-	        case 'code':
-	            cell = new codecell.CodeCell(this.kernel, cell_options);
-	            cell.set_input_prompt();
-	            break;
-	        case 'markdown':
-	            cell = new textcell.MarkdownCell(cell_options);
-	            break;
-	        case 'raw':
-	            cell = new textcell.RawCell(cell_options);
-	            break;
-	        default:
-	            console.log("Unrecognized cell type: ", type, cellmod);
-	            cell = new cellmod.UnrecognizedCell(cell_options);
-	        }
+    // On Load lets set the cell styles correctly
+	var cells = IPython.notebook.get_cells();
+	var ncells = IPython.notebook.ncells();
 
-	        // overwite our json function
-	        var cell_style_html = this.get_cell_style_html.apply(this, [this.cell_style]);
-	        cell.attr({'tabindex':'2', 'style':cell_style_html});
-	        //cell.fromJSON = fromJSON
-	        //cell.toJSON = toJSON
+    for (var i=0; i<ncells; i++){
+    	var cell = cells[i];
+    	if ("cell_style" in cell.metadata){
+    		update_cell_style_element(cell, cell.metadata.cell_style)
+    	};
+   	 };
 
-	        if(this._insert_element_at_index(cell.element,index)) {
-	            cell.render();
-	            this.events.trigger('create.Cell', {'cell': cell, 'index': index});
-	            cell.refresh();
-	            // We used to select the cell after we refresh it, but there
-	            // are now cases were this method is called where select is
-	            // not appropriate. The selection logic should be handled by the
-	            // caller of the the top level insert_cell methods.
-	            this.set_dirty(true);
-	        	}	
-		   		 }
-		return cell;
 
+	var load_extension = function() {
+		config.load();
 		};
 
 	return {
-		load_ipython_extensions : load_ipython_extensions
+		load_ipython_extension : load_extension
 		};
-};
-
-
-// var action= {'cell-style-centered' : {
-//             help: 'select cell style centered ',
-//             icon: 'cell-style',
-//             help_index : 'el',
-//             handler : function (env) {
-//                 env.notebook.set_cell_style('center');
-//             }
-//          },
-//         'cell-style-split' : {
-//             help: 'select cell style split ',
-//             icon: 'cell-style',
-//             help_index : 'el',
-//             handler : function (env) {
-//                 env.notebook.set_cell_style('split');
-//             }
-//         },
-
-
-
-// fromJSON = function (data) {
-//         if (data.metadata !== undefined) {
-//             this.metadata = data.metadata;
-//         }
-// 		if (data.cell_style !== undefined){
-//             this.cell_style = data.cell_style ;
-//            }
-//         else {this.cell_style = 'center';}
-
-
-// toJSON = function () {
-//     var data = {};
-//     // deepcopy the metadata so copied cells don't share the same object
-//     data.metadata = JSON.parse(JSON.stringify(this.metadata));
-//     data.cell_type = this.cell_type;
-//     data.cell_style = this.cell_style || "width=100%;";
-//     return data;
-// };
-
-
-// Ipython.notebook.fromJSON = function (data) {
-
-//         var content = data.content;
-//         var ncells = this.ncells();
-//         var i;
-//         for (i=0; i<ncells; i++) {
-//             // Always delete cell 0 as they get renumbered as they are deleted.
-//             this._unsafe_delete_cell(0);
-//         }
-//         // Save the metadata and name.
-//         this.metadata = content.metadata;
-//         this.notebook_name = data.name;
-//         this.notebook_path = data.path;
-//         var trusted = true;
-        
-//         // Set the codemirror mode from language_info metadata
-//         if (this.metadata.language_info !== undefined) {
-//             var langinfo = this.metadata.language_info;
-//             // Mode 'null' should be plain, unhighlighted text.
-//             var cm_mode = langinfo.codemirror_mode || langinfo.name || 'null';
-//             this.set_codemirror_mode(cm_mode);
-//         }
-        
-//         var new_cells = content.cells;
-//         ncells = new_cells.length;
-//         var cell_data = null;
-//         var new_cell = null;
-//         for (i=0; i<ncells; i++) {
-//             cell_data = new_cells[i];
-//             this.cell_style = cell_data.cell_style || 'center'
-//             new_cell = this.insert_cell_at_index(cell_data.cell_type, i);
-//             new_cell.fromJSON(cell_data);
-//             if (new_cell.cell_type === 'code' && !new_cell.output_area.trusted) {
-//                 trusted = false;
-//             }
-//         }
-//         if (trusted !== this.trusted) {
-//             this.trusted = trusted;
-//             this.events.trigger("trust_changed.Notebook", trusted);
-//         }
-//     };
+});
